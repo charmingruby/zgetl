@@ -6,8 +6,9 @@ import (
 )
 
 type Config struct {
-	BatchSize   int `env:"BATCH_SIZE"`
-	Concurrency int `env:"CONCURRENCY"`
+	BatchSize   int    `env:"BATCH_SIZE"`
+	Concurrency int    `env:"CONCURRENCY"`
+	DatabaseURL string `env:"DATABASE_URL"`
 }
 
 func Load() (Config, error) {

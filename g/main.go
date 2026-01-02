@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/charmingruby/zgetl/config"
+	"github.com/charmingruby/zgetl/database"
 )
 
 func main() {
@@ -12,10 +13,17 @@ func main() {
 		Level: slog.LevelDebug,
 	}))
 
-	_, err := config.Load()
+	cfg, err := config.Load()
 	if err != nil {
 		log.Error("config load failed", "error", err)
-
-		os.Exit(1)
+		return
 	}
+
+	db, err := database.Connect(cfg.DatabaseURL)
+	if err != nil {
+		log.Error("database connection failed", "error", err)
+		return
+	}
+	defer db.Close()
+
 }

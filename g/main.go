@@ -33,5 +33,7 @@ func main() {
 		BatchSize:   cfg.BatchSize,
 		Concurrency: cfg.Concurrency,
 	})
+
 	pipeline.Extract(context.Background(), "../data/dummy.csv")
+	pipeline.Transform(context.Background(), 1)
 }

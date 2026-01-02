@@ -2,7 +2,6 @@ package etl
 
 import (
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"log/slog"
@@ -21,7 +20,7 @@ type ETL struct {
 	transformCh chan TransformedRecord
 	wg          sync.WaitGroup
 	log         *slog.Logger
-	db          *sql.DB
+	store       *Store
 	config      Config
 }
 
@@ -48,20 +47,20 @@ type TransformedRecord struct {
 	ProcessedAt time.Time `json:"processed_at"`
 }
 
-func New(log *slog.Logger, db *sql.DB, cfg Config) *ETL {
+func New(log *slog.Logger, store *Store, cfg Config) *ETL {
 	return &ETL{
-		errCh:     make(chan error, 10),
-		extractCh: make(chan Record, 100),
-		wg:        sync.WaitGroup{},
-		log:       log,
-		db:        db,
-		config:    cfg,
+		errCh:       make(chan error, 10),
+		extractCh:   make(chan Record, 100),
+		transformCh: make(chan TransformedRecord, 100),
+		wg:          sync.WaitGroup{},
+		log:         log,
+		store:       store,
+		config:      cfg,
 	}
 }
 
 func (e *ETL) Extract(ctx context.Context, filepath string) {
 	defer close(e.extractCh)
-	// defer e.wg.Done()
 
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -111,8 +110,6 @@ func (e *ETL) Extract(ctx context.Context, filepath string) {
 }
 
 func (e *ETL) Transform(ctx context.Context, workerID int) {
-	defer e.wg.Done()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -144,6 +141,62 @@ func (e *ETL) Transform(ctx context.Context, workerID int) {
 	}
 }
 
+func (e *ETL) Load(ctx context.Context) {
+	batch := make([]TransformedRecord, 0, e.config.BatchSize)
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		if err := e.store.InsertBatch(ctx, batch); err != nil {
+			e.errCh <- fmt.Errorf("failed to insert batch: %w", err)
+		}
+
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			flush()
+			e.log.Info("load stopped")
+			return
+		case record, ok := <-e.transformCh:
+			if !ok {
+				flush()
+				e.log.Info("load finished")
+				return
+			}
+
+			batch = append(batch, record)
+			if len(batch) >= e.config.BatchSize {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
+		}
+	}
+}
+
+func (e *ETL) handleErrors(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case err, ok := <-e.errCh:
+			if !ok {
+				return
+			}
+
+			e.log.Error("pipeline error", "error", err)
+		}
+	}
+}
+
 func (e *ETL) validateTransformation(record TransformedRecord) error {
 	if record.Balance < 0 {
 		return fmt.Errorf("balance must be positive")
@@ -156,5 +209,4 @@ func (e *ETL) extractDomainFromEmail(email string) string {
 	return strings.Split(email, "@")[1]
 }
 
-// func (e *ETL) Load()      {}
 // func (e *ETL) Run()       {}

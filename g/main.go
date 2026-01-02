@@ -29,11 +29,15 @@ func main() {
 	}
 	defer db.Close()
 
-	pipeline := etl.New(log, db, etl.Config{
+	store := etl.NewStore(db)
+
+	pipeline := etl.New(log, store, etl.Config{
 		BatchSize:   cfg.BatchSize,
 		Concurrency: cfg.Concurrency,
 	})
 
+	go pipeline.ErrorHandler(context.Background())
 	pipeline.Extract(context.Background(), "../data/dummy.csv")
 	pipeline.Transform(context.Background(), 1)
+	pipeline.Load(context.Background())
 }

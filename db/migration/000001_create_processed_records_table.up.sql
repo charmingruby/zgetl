@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS wallets (
+CREATE TABLE IF NOT EXISTS processed_records (
     id VARCHAR PRIMARY KEY,
     fullname VARCHAR NOT NULL,
     email_domain VARCHAR NOT NULL,
@@ -8,4 +8,4 @@ CREATE TABLE IF NOT EXISTS wallets (
     processed_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_wallets_source ON wallets(source);
+CREATE INDEX idx_processed_records_source ON processed_records(source);

@@ -36,8 +36,5 @@ func main() {
 		Concurrency: cfg.Concurrency,
 	})
 
-	go pipeline.ErrorHandler(context.Background())
-	pipeline.Extract(context.Background(), "../data/dummy.csv")
-	pipeline.Transform(context.Background(), 1)
-	pipeline.Load(context.Background())
+	pipeline.Run(context.Background(), "../data/dummy.csv")
 }

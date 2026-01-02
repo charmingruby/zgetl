@@ -75,6 +75,7 @@ func (e *ETL) Extract(ctx context.Context, filepath string) {
 	}
 
 	recordCount := 0
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -197,6 +198,46 @@ func (e *ETL) handleErrors(ctx context.Context) {
 	}
 }
 
+func (e *ETL) Run(ctx context.Context, filename string) {
+	go e.handleErrors(ctx)
+
+	var transformationWg sync.WaitGroup
+
+	e.wg.Add(1)
+	transformationWg.Add(1)
+
+	go func() {
+		defer e.wg.Done()
+		defer transformationWg.Done()
+
+		e.Extract(ctx, filename)
+	}()
+
+	for i := 0; i < e.config.Concurrency; i++ {
+		e.wg.Add(1)
+		transformationWg.Add(1)
+
+		go func() {
+			defer e.wg.Done()
+			defer transformationWg.Done()
+
+			e.Transform(ctx, i)
+		}()
+	}
+
+	go func() {
+		transformationWg.Wait()
+		close(e.transformCh)
+	}()
+
+	e.wg.Go(func() {
+		e.Load(ctx)
+	})
+
+	e.wg.Wait()
+	close(e.errCh)
+}
+
 func (e *ETL) validateTransformation(record TransformedRecord) error {
 	if record.Balance < 0 {
 		return fmt.Errorf("balance must be positive")
@@ -208,5 +249,3 @@ func (e *ETL) validateTransformation(record TransformedRecord) error {
 func (e *ETL) extractDomainFromEmail(email string) string {
 	return strings.Split(email, "@")[1]
 }
-
-// func (e *ETL) Run()       {}

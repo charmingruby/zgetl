@@ -1,0 +1,6 @@
+id,name,email,amount,created_at
+1,John Doe,john.doe@example.com,100.50,2024-01-15
+2,Jane Smith,jane.smith@company.org,250.75,2024-01-16
+3,Bob Johnson,bob.j@test.com,75.00,2024-01-17
+4,Alice Williams,alice.w@demo.net,500.25,2024-01-18
+5,Charlie Brown,charlie@sample.io,150.00,2024-01-19

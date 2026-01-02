@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
 	"github.com/charmingruby/zgetl/config"
 	"github.com/charmingruby/zgetl/database"
+	"github.com/charmingruby/zgetl/etl"
 )
 
 func main() {
+
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
@@ -26,4 +29,9 @@ func main() {
 	}
 	defer db.Close()
 
+	pipeline := etl.New(log, db, etl.Config{
+		BatchSize:   cfg.BatchSize,
+		Concurrency: cfg.Concurrency,
+	})
+	pipeline.Extract(context.Background(), "../data/dummy.csv")
 }

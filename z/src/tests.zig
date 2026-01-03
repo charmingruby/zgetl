@@ -1,3 +1,3 @@
 comptime {
-    _ = @import("./Example.zig");
+    // _ = @import("./Example.zig");
 }

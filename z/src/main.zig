@@ -1,5 +1,7 @@
 const std = @import("std");
 const Example = @import("Example.zig");
+const config = @import("config.zig");
+const dotenv = @import("dotenv.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -7,8 +9,8 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const ex = try Example.init(allocator, "id-123");
-    defer ex.deinit();
+    dotenv.load();
 
-    std.log.info("ex id={s}", .{ex.id});
+    const conf = try config.init(allocator);
+    defer conf.deinit();
 }

@@ -4,8 +4,8 @@ const dotenv = @import("dotenv.zig");
 pub const Config = @This();
 
 allocator: std.mem.Allocator,
-batch_size: i32,
-concurrency: i32,
+batch_size: ?i32,
+concurrency: ?i32,
 database_port: i32,
 database_host: []const u8,
 database_name: []const u8,
@@ -18,8 +18,8 @@ pub fn init(allocator: std.mem.Allocator) !*Config {
 
     self.* = .{
         .allocator = allocator,
-        .batch_size = dotenv.getOrDefault(i32, "BATCH_SIZE", 100),
-        .concurrency = dotenv.getOrDefault(i32, "CONCURRENCY", 10),
+        .batch_size = dotenv.getOptional(i32, "BATCH_SIZE"),
+        .concurrency = dotenv.getOptional(i32, "CONCURRENCY"),
         .database_host = try dotenv.get([]const u8, "DATABASE_HOST"),
         .database_port = try dotenv.get(i32, "DATABASE_PORT"),
         .database_name = try dotenv.get([]const u8, "DATABASE_NAME"),

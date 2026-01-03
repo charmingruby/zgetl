@@ -2,6 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const dotenv = @import("dotenv.zig");
 const db = @import("db.zig");
+const Etl = @import("./etl/Etl.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -22,4 +23,10 @@ pub fn main() !void {
         .password = conf.database_password,
     });
     defer pg_pool.deinit();
+
+    const etl = try Etl.init(allocator, pg_pool, .{
+        .batch_size = conf.batch_size,
+        .concurrency = conf.concurrency,
+    });
+    defer etl.deinit();
 }

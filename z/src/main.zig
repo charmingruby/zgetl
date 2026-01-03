@@ -29,4 +29,6 @@ pub fn main() !void {
         .concurrency = conf.concurrency,
     });
     defer etl.deinit();
+
+    try etl.extract("../data/dummy.csv");
 }

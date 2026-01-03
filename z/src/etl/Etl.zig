@@ -64,3 +64,58 @@ pub fn deinit(self: *Etl) void {
     self.transform_queue.deinit();
     self.allocator.destroy(self);
 }
+
+pub fn extract(self: *Etl, filepath: []const u8) !void {
+    defer self.extract_queue.close();
+
+    const file = try std.fs.cwd().openFile(filepath, .{});
+    defer file.close();
+
+    var buf: [8192]u8 = undefined;
+    const reader = file.deprecatedReader();
+
+    var record_count: usize = 0;
+
+    _ = try reader.readUntilDelimiterOrEof(&buf, '\n');
+
+    while (true) {
+        if (self.should_stop.load(.acquire)) {
+            break;
+        }
+
+        const line = reader.readUntilDelimiterOrEof(&buf, '\n') catch |err| {
+            if (err == error.EndOfStream) break;
+
+            return err;
+        };
+
+        if (line == null) break;
+
+        const record = try self.parseCsvLine(line.?);
+
+        try self.extract_queue.push(record);
+
+        record_count += 1;
+    }
+}
+
+pub fn parseCsvLine(_: *Etl, line: []const u8) !Record {
+    var it = std.mem.splitScalar(u8, line, ',');
+
+    const id_str = it.next() orelse return error.InvalidCsv;
+    const name = it.next() orelse return error.InvalidCsv;
+    const email = it.next() orelse return error.InvalidCsv;
+    const amount_str = it.next() orelse return error.InvalidCsv;
+    const created_at_str = it.next() orelse return error.InvalidCsv;
+
+    const id = try std.fmt.parseInt(i32, id_str, 10);
+    const amount = try std.fmt.parseFloat(f32, amount_str);
+
+    return Record{
+        .id = id,
+        .name = name,
+        .email = email,
+        .amount = amount,
+        .created_at = created_at_str,
+    };
+}

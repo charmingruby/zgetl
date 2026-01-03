@@ -3,6 +3,7 @@ const config = @import("config.zig");
 const dotenv = @import("dotenv.zig");
 const db = @import("db.zig");
 const Etl = @import("./etl/Etl.zig");
+const queue = @import("./etl/Queue.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

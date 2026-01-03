@@ -3,13 +3,21 @@ const pg = @import("pg");
 
 pub const Etl = @This();
 
+const DEFAULT_BATCH_SIZE = 100;
+const DEFAULT_CONCURRENCY = 16;
+
 pub const Options = struct {
     concurrency: ?i32,
     batch_size: ?i32,
 };
 
-const DEFAULT_BATCH_SIZE = 100;
-const DEFAULT_CONCURRENCY = 16;
+pub const Record = struct {
+    name: []const u8,
+    email: []const u8,
+    created_at: []const u8,
+    amount: f64,
+    id: i32,
+};
 
 allocator: std.mem.Allocator,
 concurrency: i32,

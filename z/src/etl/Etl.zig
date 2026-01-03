@@ -1,6 +1,7 @@
 const std = @import("std");
 const pg = @import("pg");
 const queue = @import("queue.zig");
+const store = @import("store.zig");
 
 pub const Etl = @This();
 

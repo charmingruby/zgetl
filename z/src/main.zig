@@ -34,7 +34,5 @@ pub fn main() !void {
     });
     defer etl.deinit();
 
-    try etl.extract("../data/dummy.csv");
-    try etl.transform(1);
-    try etl.load();
+    try etl.run("../data/dummy.csv");
 }

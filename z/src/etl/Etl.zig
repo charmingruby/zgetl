@@ -52,6 +52,7 @@ pg_pool: *pg.Pool,
 extract_queue: *queue.Queue(Record),
 transform_queue: *queue.Queue(TransformedRecord),
 should_stop: std.atomic.Value(bool),
+remaining_transforms: std.atomic.Value(i32),
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -66,10 +67,11 @@ pub fn init(
         .id_generator = id_gen,
         .pg_pool = pg_pool,
         .batch_size = opts.batch_size orelse DEFAULT_BATCH_SIZE,
-        .concurrency = opts.batch_size orelse DEFAULT_CONCURRENCY,
+        .concurrency = opts.concurrency orelse DEFAULT_CONCURRENCY,
         .extract_queue = try queue.Queue(Record).init(allocator),
         .transform_queue = try queue.Queue(TransformedRecord).init(allocator),
         .should_stop = std.atomic.Value(bool).init(false),
+        .remaining_transforms = std.atomic.Value(i32).init(self.concurrency),
     };
 
     return self;
@@ -81,7 +83,7 @@ pub fn deinit(self: *Etl) void {
     self.allocator.destroy(self);
 }
 
-pub fn extract(self: *Etl, filepath: []const u8) !void {
+fn extract(self: *Etl, filepath: []const u8) !void {
     defer self.extract_queue.close();
 
     const file = try std.fs.cwd().openFile(filepath, .{});
@@ -118,8 +120,12 @@ pub fn extract(self: *Etl, filepath: []const u8) !void {
     }
 }
 
-pub fn transform(self: *Etl, _: usize) !void {
-    defer self.transform_queue.close();
+fn transform(self: *Etl, _: usize) !void {
+    defer {
+        if (self.remaining_transforms.fetchSub(1, .acq_rel) == 1) {
+            self.transform_queue.close();
+        }
+    }
 
     while (true) {
         if (self.should_stop.load(.acquire)) {
@@ -160,7 +166,7 @@ pub fn transform(self: *Etl, _: usize) !void {
     }
 }
 
-pub fn load(self: *Etl) !void {
+fn load(self: *Etl) !void {
     var batch = try std.ArrayList(TransformedRecord).initCapacity(self.allocator, 0);
 
     defer batch.deinit(self.allocator);
@@ -210,6 +216,53 @@ pub fn load(self: *Etl) !void {
     if (batch.items.len > 0) {
         try flush.process(self.allocator, self.pg_pool, &batch);
     }
+}
+
+pub fn run(self: *Etl, filepath: []const u8) !void {
+    var threads = try std.ArrayList(std.Thread).initCapacity(self.allocator, 0);
+    defer threads.deinit(self.allocator);
+
+    const extract_thread = try std.Thread.spawn(.{}, extractThread, .{
+        self,
+        filepath,
+    });
+    try threads.append(self.allocator, extract_thread);
+
+    var i: usize = 0;
+    while (i < self.concurrency) : (i += 1) {
+        const transform_thread = try std.Thread.spawn(.{}, transformThread, .{
+            self,
+            i,
+        });
+        try threads.append(self.allocator, transform_thread);
+    }
+
+    const load_thread = try std.Thread.spawn(.{}, loadThread, .{
+        self,
+    });
+    try threads.append(self.allocator, load_thread);
+
+    for (threads.items) |t| {
+        t.join();
+    }
+}
+
+fn extractThread(self: *Etl, filepath: []const u8) void {
+    self.extract(filepath) catch |err| {
+        std.log.err("extraction error: {any}", .{err});
+    };
+}
+
+fn transformThread(self: *Etl, worker_id: usize) void {
+    self.transform(worker_id) catch |err| {
+        std.log.err("transformation error o worker-{d}: {any}", .{ worker_id, err });
+    };
+}
+
+fn loadThread(self: *Etl) void {
+    self.load() catch |err| {
+        std.log.err("loading error: {any}", .{err});
+    };
 }
 
 fn extractDomainFromEmail(_: *Etl, email: []const u8) []const u8 {

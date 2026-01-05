@@ -58,8 +58,19 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-
     exe.root_module.addImport("pg", pg.module("pg"));
+
+    const uuid = b.dependency("uuid", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("uuid", uuid.module("uuid"));
+
+    const date = b.dependency("datetime", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("datetime", date.module("datetime"));
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default

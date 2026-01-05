@@ -4,6 +4,12 @@ pub fn Queue(comptime T: type) type {
     return struct {
         const Self = @This();
 
+        const PopResult = union(enum) {
+            item: T,
+            timeout,
+            closed,
+        };
+
         allocator: std.mem.Allocator,
         items: std.ArrayList(T),
         mutex: std.Thread.Mutex,
@@ -50,6 +56,35 @@ pub fn Queue(comptime T: type) type {
             if (self.items.items.len == 0) return null;
 
             return self.items.orderedRemove(0);
+        }
+
+        pub fn popTimeout(self: *Self, timeout_ns: i128) !PopResult {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            const start = std.time.nanoTimestamp();
+            const deadline: u64 = @intCast(start + timeout_ns);
+
+            while (self.items.items.len == 0) {
+                if (self.closed) {
+                    return .closed;
+                }
+
+                const now = std.time.nanoTimestamp();
+                if (now >= deadline) {
+                    return .timeout;
+                }
+
+                self.cond.timedWait(&self.mutex, deadline) catch |err| {
+                    if (err == error.Timeout) {
+                        return .timeout;
+                    }
+
+                    return err;
+                };
+            }
+
+            return .{ .item = self.items.orderedRemove(0) };
         }
 
         pub fn close(self: *Self) void {

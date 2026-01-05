@@ -2,6 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const dotenv = @import("dotenv.zig");
 const db = @import("db.zig");
+const UId = @import("UId.zig");
 const Etl = @import("./etl/Etl.zig");
 
 pub fn main() !void {
@@ -24,11 +25,16 @@ pub fn main() !void {
     });
     defer pg_pool.deinit();
 
-    const etl = try Etl.init(allocator, pg_pool, .{
+    const uid = try UId.init(allocator);
+    defer uid.deinit();
+
+    const etl = try Etl.init(allocator, pg_pool, uid, .{
         .batch_size = conf.batch_size,
         .concurrency = conf.concurrency,
     });
     defer etl.deinit();
 
     try etl.extract("../data/dummy.csv");
+    try etl.transform(1);
+    try etl.load();
 }

@@ -6,11 +6,14 @@ pub fn insertBatch(pg_pool: *pg.Pool, records: std.ArrayList(Etl.TransformedReco
     const conn = try pg_pool.acquire();
     defer pg_pool.release(conn);
 
-    try conn.exec("BEGIN", .{});
-    errdefer conn.exec("ROLLBACK", .{});
+    _ = try conn.exec("BEGIN", .{});
+
+    errdefer _ = conn.exec("ROLLBACK", .{}) catch |err| {
+        std.log.err("rollback failure: {any}", .{err});
+    };
 
     for (records.items) |r| {
-        try conn.exec(
+        _ = try conn.exec(
             \\INSERT INTO processed_records (id, fullname, email_domain, source, ref_id, balance, processed_at)
             \\VALUES ($1, $2, $3, $4, $5, $6, $7)
         , .{
@@ -24,5 +27,5 @@ pub fn insertBatch(pg_pool: *pg.Pool, records: std.ArrayList(Etl.TransformedReco
         });
     }
 
-    try conn.exec("COMMIT", .{});
+    _ = try conn.exec("COMMIT", .{});
 }
